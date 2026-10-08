@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1013">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="筋トレ">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>筋トレ記録</title>
+<style>
+:root {
+  --bg: #f4f5f7; --card: #ffffff; --text: #16181d; --sub: #6b7280; --line: #e3e6ea;
+  --accent: #4d7c0f; --accent-fg: #ffffff; --accent-soft: #ecf6d9; --danger: #dc2626; --pr: #d97706;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1013; --card: #181b20; --text: #eef0f3; --sub: #8b93a1; --line: #2a2e36;
+    --accent: #a3e635; --accent-fg: #11140a; --accent-soft: #232b12; --danger: #f87171; --pr: #fbbf24;
+  }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.5 -apple-system, "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+  padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+header { padding: 18px 16px 6px; max-width: 640px; margin: 0 auto; display: flex; justify-content: space-between; align-items: baseline; }
+header h1 { margin: 0; font-size: 22px; letter-spacing: .02em; }
+header .streak { color: var(--sub); font-size: 13px; }
+main { max-width: 640px; margin: 0 auto; padding: 8px 16px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 12px; font-size: 15px; color: var(--sub); font-weight: 600; }
+label { display: block; font-size: 12px; color: var(--sub); margin-bottom: 4px; }
+input, select { width: 100%; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 12px; padding: 12px; min-height: 48px; }
+input:focus, select:focus { outline: 2px solid var(--accent); border-color: transparent; }
+.row { display: flex; gap: 10px; }
+.row > * { flex: 1; min-width: 0; }
+@media (max-width: 420px) { .row.stack { flex-direction: column; gap: 0; } .timer .time { font-size: 32px; min-width: 90px; } }
+.field { margin-bottom: 12px; }
+button { font: inherit; border: 0; border-radius: 12px; min-height: 48px; padding: 0 16px; cursor: pointer;
+  background: var(--accent); color: var(--accent-fg); font-weight: 700; }
+button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); font-weight: 500; }
+button.small { min-height: 36px; padding: 0 12px; font-size: 14px; }
+button.full { width: 100%; }
+.stepper { display: flex; gap: 6px; }
+.stepper button { min-height: 48px; width: 44px; padding: 0; flex: none; }
+.stepper input { text-align: center; flex: 1; }
+.hint { font-size: 13px; color: var(--sub); margin-top: 6px; }
+.set { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.set:first-of-type { border-top: 0; }
+.set .n { width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent);
+  font-size: 13px; font-weight: 700; display: grid; place-items: center; flex: none; }
+.set .v { flex: 1; font-variant-numeric: tabular-nums; }
+.set .v b { font-size: 18px; }
+.set .del { background: none; color: var(--sub); min-height: 36px; width: 36px; padding: 0; font-size: 18px; }
+.ex-title { font-weight: 700; margin: 4px 0 2px; display: flex; justify-content: space-between; align-items: baseline; }
+.ex-title small { color: var(--sub); font-weight: 400; }
+.badge { display: inline-block; font-size: 11px; font-weight: 700; color: #fff; background: var(--pr); border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; }
+.empty { color: var(--sub); text-align: center; padding: 20px 0; font-size: 14px; }
+nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); border-top: 1px solid var(--line);
+  display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 10; }
+nav button { flex: 1; min-width: 0; white-space: nowrap; background: none; color: var(--sub); border-radius: 0; min-height: 60px; font-size: 11px; font-weight: 600;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+nav button span { font-size: 20px; line-height: 1; }
+nav button.on { color: var(--accent); }
+.view { display: none; } .view.on { display: block; }
+/* timer */
+.timer { display: flex; align-items: center; gap: 12px; }
+.timer .time { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; min-width: 110px; }
+.timer.done .time { color: var(--accent); }
+.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 10px; }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s linear; }
+/* calendar */
+.cal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.cal-head b { font-size: 17px; }
+.cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+.cal .dow { font-size: 11px; color: var(--sub); padding: 4px 0; }
+.cal .d { aspect-ratio: 1; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-size: 14px; background: none; color: var(--text); min-height: 0; padding: 0; font-weight: 400; position: relative; }
+.cal .d.has::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); position: absolute; bottom: 5px; }
+.cal .d.today { border: 1px solid var(--accent); }
+.cal .d.sel { background: var(--accent); color: var(--accent-fg); font-weight: 700; }
+.cal .d.sel::after { background: var(--accent-fg); }
+.cal .d.out { visibility: hidden; }
+/* chart */
+svg.chart { width: 100%; height: auto; display: block; }
+.chart text { fill: var(--sub); font-size: 11px; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .ln { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.chart .pt { fill: var(--accent); }
+.chart .area { fill: var(--accent-soft); opacity: .7; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 10px 6px; border-top: 1px solid var(--line); font-size: 14px; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--sub); font-weight: 600; font-size: 12px; border-top: 0; }
+.toast { position: fixed; left: 50%; top: 16px; transform: translate(-50%, -80px); background: var(--pr); color: #1a1100;
+  padding: 12px 20px; border-radius: 14px; font-weight: 800; z-index: 20; transition: transform .3s; box-shadow: 0 8px 24px rgba(0,0,0,.25); max-width: 90vw; }
+.toast.show { transform: translate(-50%, 0); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+.chip { min-height: 36px; padding: 0 14px; border-radius: 18px; font-size: 14px; background: var(--accent-soft); color: var(--accent); font-weight: 600; border: 1px solid transparent; }
+.chip.on { background: var(--accent); color: var(--accent-fg); }
+.chip.ex { background: var(--bg); color: var(--text); border-color: var(--line); font-weight: 500; }
+.chip.ex.done { opacity: .5; text-decoration: line-through; }
+.note { font-size: 13px; color: var(--sub); margin-top: 2px; }
+.rt { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
+.rt .v { flex: 1; } .rt small { color: var(--sub); display: block; }
+.seg { display: flex; gap: 6px; margin-bottom: 12px; }
+.seg button { flex: 1; min-height: 40px; background: var(--bg); color: var(--text); border: 1px solid var(--line); font-weight: 500; font-size: 14px; }
+.seg button.on { background: var(--accent); color: var(--accent-fg); border-color: transparent; font-weight: 700; }
+svg.body { width: 100%; height: auto; display: block; }
+.body .m { fill: var(--line); stroke: var(--card); stroke-width: 2; }
+.body .base { fill: var(--line); opacity: .6; }
+.body text { fill: var(--sub); font-size: 12px; text-anchor: middle; }
+.gbar { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 14px; }
+.gbar .nm { width: 52px; flex: none; } .gbar .tr { flex: 1; height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; }
+.gbar .tr i { display: block; height: 100%; background: var(--accent); border-radius: 5px; } .gbar .ct { width: 64px; text-align: right; color: var(--sub); font-variant-numeric: tabular-nums; flex: none; }
+.past { margin-top: 8px; padding: 12px; background: var(--bg); border-radius: 12px; border: 1px solid var(--line); }
+.past .pbest { font-size: 14px; margin-bottom: 8px; } .past .pbest b { color: var(--accent); }
+.pastrow { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; border-top: 1px solid var(--line); }
+.pastrow .pd { width: 70px; flex: none; font-size: 13px; color: var(--sub); padding-top: 7px; font-variant-numeric: tabular-nums; }
+.past .chip.ex { background: var(--card); }
+</style>
+</head>
+<body>
+<header><h1>🏋️ 筋トレ記録</h1><div class="streak" id="streak"></div></header>
+<main>
+
+<!-- 記録 -->
+<section class="view on" id="v-log">
+  <div class="card" id="rtCard" hidden>
+    <h2>ルーティン</h2>
+    <div class="chips" id="rtChips"></div>
+    <div class="chips" id="rtEx" style="margin-top:10px"></div>
+  </div>
+  <div class="card">
+    <div class="field"><label for="date">日付</label><input type="date" id="date"></div>
+    <div class="field">
+      <label for="exercise">種目</label>
+      <input id="exercise" list="exlist" placeholder="例: ベンチプレス" autocomplete="off">
+      <datalist id="exlist"></datalist>
+      <div class="hint" id="last"></div>
+    </div>
+    <div class="field"><label for="group">鍛える部位</label>
+      <select id="group"><option value="">未設定</option></select></div>
+    <div class="field"><label for="memo">この種目のメモ (フォームや設定など)</label>
+      <input id="memo" placeholder="例: シートの高さ3、肩甲骨を寄せる"></div>
+    <div class="field"><label for="snote">このセットのメモ (任意)</label>
+      <input id="snote" placeholder="例: 調子良い / 最後きつかった"></div>
+    <div class="row stack">
+      <div class="field"><label for="weight">重量 (kg)</label>
+        <div class="stepper"><button class="ghost" data-step="weight:-2.5">−</button><input id="weight" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0"><button class="ghost" data-step="weight:2.5">＋</button></div></div>
+      <div class="field"><label for="reps">回数</label>
+        <div class="stepper"><button class="ghost" data-step="reps:-1">−</button><input id="reps" type="number" inputmode="numeric" step="1" min="1" placeholder="0"><button class="ghost" data-step="reps:1">＋</button></div></div>
+    </div>
+    <button class="full" id="add">セットを記録</button>
+  </div>
+
+  <div class="card">
+    <h2>休憩タイマー</h2>
+    <div class="timer" id="timer">
+      <div class="time" id="tm">1:30</div>
+      <select id="rest" style="flex:1">
+        <option value="45">45秒</option><option value="60">1分</option><option value="90" selected>1分30秒</option>
+        <option value="120">2分</option><option value="180">3分</option><option value="300">5分</option>
+      </select>
+      <button class="small" id="tmBtn">開始</button>
+    </div>
+    <div class="bar"><i id="tmBar"></i></div>
+    <div class="hint">セットを記録すると自動で始まります</div>
+  </div>
+
+  <div id="today"></div>
+</section>
+
+<!-- 履歴 -->
+<section class="view" id="v-hist">
+  <div class="card">
+    <div class="cal-head"><button class="ghost small" id="prev">‹</button><b id="calTitle"></b><button class="ghost small" id="next">›</button></div>
+    <div class="cal" id="cal"></div>
+  </div>
+  <div id="histDetail"></div>
+</section>
+
+<!-- 部位 -->
+<section class="view" id="v-body">
+  <div class="card">
+    <div class="seg" id="bodyRange"><button data-days="7" class="on">7日</button><button data-days="30">30日</button><button data-days="0">全期間</button></div>
+    <div id="bodyBox"></div>
+  </div>
+  <div class="card"><h2>部位ごとのセット数</h2><div id="bodyList"></div><div class="hint" id="bodyHint"></div></div>
+</section>
+
+<!-- グラフ -->
+<section class="view" id="v-chart">
+  <div class="card">
+    <div class="row">
+      <div class="field"><label for="cex">種目</label><select id="cex"></select></div>
+      <div class="field"><label for="cmetric">指標</label>
+        <select id="cmetric"><option value="max">最大重量</option><option value="e1rm">推定1RM</option><option value="vol">総ボリューム</option></select></div>
+    </div>
+    <div id="chartBox"></div>
+  </div>
+</section>
+
+<!-- PR -->
+<section class="view" id="v-pr">
+  <div class="card">
+    <h2>自己ベスト</h2>
+    <div id="prBox"></div>
+  </div>
+  <div class="card">
+    <h2>ルーティン管理</h2>
+    <div id="rtList"></div>
+    <div class="field" style="margin-top:12px"><label for="rtName">名前</label><input id="rtName" placeholder="例: 胸の日"></div>
+    <div class="field"><label for="rtExs">種目 (カンマ区切り)</label><input id="rtExs" placeholder="例: ベンチプレス, ショルダープレス, アームカール"></div>
+    <button class="full" id="rtAdd">ルーティンを追加</button>
+  </div>
+  <div class="card">
+    <h2>データ</h2>
+    <div class="row">
+      <button class="ghost" id="export">書き出し (JSON)</button>
+      <button class="ghost" id="import">読み込み</button>
+    </div>
+    <input type="file" id="file" accept="application/json" hidden>
+    <div class="hint">データはこの端末のブラウザ内に保存されています。機種変更前などに書き出しておくと安心です。</div>
+  </div>
+</section>
+</main>
+
+<nav>
+  <button class="on" data-tab="log"><span>✏️</span>記録</button>
+  <button data-tab="hist"><span>📅</span>履歴</button>
+  <button data-tab="body"><span>🧍</span>部位</button>
+  <button data-tab="chart"><span>📈</span>グラフ</button>
+  <button data-tab="pr"><span>🏆</span>PR</button>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const KEY = "workout-tracker-v1";
+  const PRESETS = ["ベンチプレス", "スクワット", "デッドリフト", "ショルダープレス", "懸垂", "ラットプルダウン", "バーベルロウ", "レッグプレス", "アームカール"];
+  const GROUPS = ["胸", "背中", "肩", "腕", "腹", "脚", "お尻"];
+  const PRESET_GROUP = { "ベンチプレス": "胸", "スクワット": "脚", "デッドリフト": "背中", "ショルダープレス": "肩", "懸垂": "背中", "ラットプルダウン": "背中", "バーベルロウ": "背中", "レッグプレス": "脚", "アームカール": "腕" };
+  const GUESS = [["胸", /ベンチ|インクライン|ダンベルプレス|フライ|プッシュアップ|腕立|ディップス|チェスト/], ["背中", /ロウ|プル|懸垂|デッド|背/], ["肩", /ショルダー|サイド|レイズ|ショルプレ/], ["腕", /カール|トライセプス|フレンチ|アーム|キックバック/], ["腹", /腹筋|クランチ|シットアップ|プランク|レッグレイズ/], ["お尻", /ヒップ|グルート|ブルガリアン/], ["脚", /スクワット|レッグ|ランジ|カーフ/]];
+  const groupOf = (name) => { if (meta.groups[name]) return meta.groups[name]; if (PRESET_GROUP[name]) return PRESET_GROUP[name]; const g = GUESS.find(([, re]) => re.test(name)); return g ? g[0] : ""; };
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  // ---- storage (localStorage が使えない環境でも動くようメモリにフォールバック) ----
+  let sets = [];
+  try { sets = JSON.parse(localStorage.getItem(KEY) || "[]"); if (!Array.isArray(sets)) sets = []; } catch { sets = []; }
+  let meta = { notes: {}, routines: [], groups: {} };
+  try { const m = JSON.parse(localStorage.getItem(KEY + "-meta") || "{}"); meta = { notes: m.notes || {}, routines: m.routines || [], groups: m.groups || {} }; } catch {}
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(sets)); localStorage.setItem(KEY + "-meta", JSON.stringify(meta)); } catch {} };
+
+  const pad = (n) => String(n).padStart(2, "0");
+  const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const today = () => ymd(new Date());
+  const e1rm = (w, r) => (r <= 1 ? w : w * (1 + r / 30)); // Epley
+  const fmt = (n) => (Math.round(n * 10) / 10).toString();
+  const wd = ["日", "月", "火", "水", "木", "金", "土"];
+  const dlabel = (s) => { const [y, m, d] = s.split("-").map(Number); return `${m}/${d} (${wd[new Date(y, m - 1, d).getDay()]})`; };
+
+  const byExercise = (name) => sets.filter((s) => s.exercise === name);
+  const exercises = () => [...new Set(sets.map((s) => s.exercise))];
+
+  // ---- tabs ----
+  document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => {
+    document.querySelectorAll("nav button").forEach((x) => x.classList.toggle("on", x === b));
+    document.querySelectorAll(".view").forEach((v) => v.classList.toggle("on", v.id === "v-" + b.dataset.tab));
+    render();
+    scrollTo(0, 0);
+  }));
+
+  // ---- toast ----
+  let toastT;
+  function toast(msg) {
+    const t = $("toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2600);
+  }
+
+  // ---- 記録フォーム ----
+  $("date").value = today();
+  document.querySelectorAll("[data-step]").forEach((b) => b.addEventListener("click", () => {
+    const [id, d] = b.dataset.step.split(":");
+    const el = $(id); const v = parseFloat(el.value) || 0;
+    el.value = Math.max(0, Math.round((v + parseFloat(d)) * 10) / 10) || "";
+  }));
+
+  function renderPast() {
+    const name = $("exercise").value.trim();
+    const box = $("last");
+    if (!name) { box.innerHTML = ""; return; }
+    const all = byExercise(name);
+    if (!all.length) { box.innerHTML = '<div class="hint">初めての種目です</div>'; return; }
+    const cur = $("date").value || today();
+    const dates = [...new Set(all.filter((s) => s.date !== cur).map((s) => s.date))].sort().reverse();
+    const bestW = all.reduce((b, s) => (s.weight > b.weight || (s.weight === b.weight && s.reps > b.reps) ? s : b), all[0]);
+    const bestE = Math.max(...all.map((s) => e1rm(s.weight, s.reps)));
+    const shown = dates.slice(0, 1);
+    const rows = shown.map((d) => {
+      const day = all.filter((s) => s.date === d);
+      const chips = day.map((s) => `<button class="chip ex" data-fill="${s.weight}:${s.reps}">${fmt(s.weight)}kg×${s.reps}</button>`).join("");
+      return `<div class="pastrow"><span class="pd">${dlabel(d)}</span><span class="chips">${chips}</span></div>`;
+    }).join("");
+    box.innerHTML = `<div class="past"><div class="pbest">🏆 最高 <b>${fmt(bestW.weight)}kg×${bestW.reps}</b> ／ 推定1RM <b>${fmt(bestE)}kg</b></div>
+      ${rows || '<div class="hint">過去の記録はこの日が初めてです</div>'}
+      ${rows ? '<div class="hint">タップすると重量と回数が入力されます</div>' : ""}</div>`;
+  }
+  function showLast() {
+    const name = $("exercise").value.trim();
+    $("memo").value = meta.notes[name] || "";
+    $("group").value = groupOf(name);
+    renderPast();
+    if (!name) return;
+    const cur = $("date").value || today();
+    const hist = byExercise(name).filter((s) => s.date < cur);
+    if (!hist.length) return;
+    const lastDate = hist.reduce((m, s) => (s.date > m ? s.date : m), "");
+    const lastSet = hist.filter((s) => s.date === lastDate).slice(-1)[0];
+    if (!$("weight").value) $("weight").value = lastSet.weight;
+    if (!$("reps").value) $("reps").value = lastSet.reps;
+  }
+  $("exercise").addEventListener("input", renderPast);
+  document.addEventListener("click", (e) => {
+    const t = e.target;
+    if (t.dataset && t.dataset.fill) { const [w, r] = t.dataset.fill.split(":"); $("weight").value = w; $("reps").value = r; }
+  });
+  $("group").innerHTML += GROUPS.map((g) => `<option>${g}</option>`).join("");
+  $("group").addEventListener("change", () => {
+    const name = $("exercise").value.trim(); if (!name) return;
+    if ($("group").value) meta.groups[name] = $("group").value; else delete meta.groups[name];
+    save(); renderBody();
+  });
+  $("exercise").addEventListener("change", () => { showLast(); renderRoutine(); });
+  $("memo").addEventListener("change", () => {
+    const name = $("exercise").value.trim(); if (!name) return;
+    const v = $("memo").value.trim();
+    if (v) meta.notes[name] = v; else delete meta.notes[name];
+    save();
+  });
+  $("date").addEventListener("change", () => { showLast(); render(); });
+
+  $("add").addEventListener("click", () => {
+    const exercise = $("exercise").value.trim();
+    const weight = parseFloat($("weight").value);
+    const reps = parseInt($("reps").value, 10);
+    const date = $("date").value || today();
+    if (!exercise) return toast("種目を入力してください");
+    if (!(weight >= 0) || isNaN(weight)) return toast("重量を入力してください");
+    if (!(reps > 0)) return toast("回数を入力してください");
+
+    const prev = byExercise(exercise);
+    const prevMaxW = prev.reduce((m, s) => Math.max(m, s.weight), 0);
+    const prevMaxE = prev.reduce((m, s) => Math.max(m, e1rm(s.weight, s.reps)), 0);
+    const entry = { id: Date.now() + Math.random().toString(36).slice(2, 6), date, exercise, weight, reps, pr: false };
+    const note = $("snote").value.trim(); if (note) entry.note = note;
+    $("snote").value = "";
+    if (prev.length && weight > 0 && (weight > prevMaxW || e1rm(weight, reps) > prevMaxE + 0.001)) {
+      entry.pr = true;
+      toast(weight > prevMaxW ? "🎉 重量の自己ベスト更新！" : "🎉 推定1RMの自己ベスト更新！");
+    }
+    sets.push(entry); save();
+    startTimer();
+    render();
+  });
+
+  function groupByExercise(list) {
+    const m = new Map();
+    list.forEach((s) => { if (!m.has(s.exercise)) m.set(s.exercise, []); m.get(s.exercise).push(s); });
+    return m;
+  }
+  function setsHtml(list, deletable) {
+    let html = "";
+    groupByExercise(list).forEach((arr, name) => {
+      const vol = arr.reduce((a, s) => a + s.weight * s.reps, 0);
+      html += `<div class="ex-title"><span>${esc(name)}</span><small>ボリューム ${Math.round(vol).toLocaleString()}kg</small></div>${meta.notes[name] ? `<div class="note">📝 ${esc(meta.notes[name])}</div>` : ""}`;
+      arr.forEach((s, i) => {
+        html += `<div class="set"><div class="n">${i + 1}</div>
+          <div class="v"><b>${fmt(s.weight)}</b> kg × <b>${s.reps}</b> 回${s.pr ? '<span class="badge">PR</span>' : ""}${s.note ? `<div class="note">${esc(s.note)}</div>` : ""}</div>
+          ${deletable ? `<button class="del" data-del="${s.id}" aria-label="削除">✕</button>` : ""}</div>`;
+      });
+    });
+    return html;
+  }
+
+  document.addEventListener("click", (e) => {
+    const id = e.target.dataset && e.target.dataset.del;
+    if (!id) return;
+    sets = sets.filter((s) => s.id !== id); save(); render();
+  });
+
+  // ---- 休憩タイマー ----
+  let tEnd = 0, tTotal = 90, tInt = null;
+  const tmFmt = (s) => `${Math.floor(s / 60)}:${pad(s % 60)}`;
+  function tick() {
+    const left = Math.max(0, Math.ceil((tEnd - Date.now()) / 1000));
+    $("tm").textContent = tmFmt(left);
+    $("tmBar").style.width = (100 * (1 - left / tTotal)) + "%";
+    if (left <= 0) {
+      stopTimer(true);
+    }
+  }
+  function startTimer() {
+    tTotal = parseInt($("rest").value, 10);
+    tEnd = Date.now() + tTotal * 1000;
+    $("timer").classList.remove("done");
+    $("tmBtn").textContent = "停止";
+    clearInterval(tInt); tInt = setInterval(tick, 250); tick();
+  }
+  function stopTimer(finished) {
+    clearInterval(tInt); tInt = null;
+    $("tmBtn").textContent = "開始";
+    if (finished) {
+      $("timer").classList.add("done");
+      $("tm").textContent = "休憩終了！";
+      $("tmBar").style.width = "100%";
+      try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch {}
+      try {
+        const ac = new (window.AudioContext || window.webkitAudioContext)();
+        [0, 0.25].forEach((t) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = 880; o.connect(g); g.connect(ac.destination);
+          g.gain.setValueAtTime(0.15, ac.currentTime + t); g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + t + 0.2); o.start(ac.currentTime + t); o.stop(ac.currentTime + t + 0.2); });
+      } catch {}
+    } else {
+      $("tm").textContent = tmFmt(parseInt($("rest").value, 10));
+      $("tmBar").style.width = "0";
+    }
+  }
+  $("tmBtn").addEventListener("click", () => (tInt ? stopTimer(false) : startTimer()));
+  $("rest").addEventListener("change", () => { if (!tInt) { $("timer").classList.remove("done"); $("tm").textContent = tmFmt(parseInt($("rest").value, 10)); } });
+
+  // ---- 履歴 / カレンダー ----
+  let cur = new Date(); cur.setDate(1);
+  let selDay = today();
+  $("prev").addEventListener("click", () => { cur.setMonth(cur.getMonth() - 1); renderHist(); });
+  $("next").addEventListener("click", () => { cur.setMonth(cur.getMonth() + 1); renderHist(); });
+
+  function renderHist() {
+    const y = cur.getFullYear(), m = cur.getMonth();
+    $("calTitle").textContent = `${y}年${m + 1}月`;
+    const days = new Set(sets.map((s) => s.date));
+    let html = wd.map((d) => `<div class="dow">${d}</div>`).join("");
+    for (let i = 0; i < new Date(y, m, 1).getDay(); i++) html += '<div class="d out"></div>';
+    const last = new Date(y, m + 1, 0).getDate();
+    for (let d = 1; d <= last; d++) {
+      const key = `${y}-${pad(m + 1)}-${pad(d)}`;
+      html += `<button class="d${days.has(key) ? " has" : ""}${key === today() ? " today" : ""}${key === selDay ? " sel" : ""}" data-day="${key}">${d}</button>`;
+    }
+    $("cal").innerHTML = html;
+    $("cal").querySelectorAll("[data-day]").forEach((b) => b.addEventListener("click", () => { selDay = b.dataset.day; renderHist(); }));
+
+    const list = sets.filter((s) => s.date === selDay);
+    $("histDetail").innerHTML = `<div class="card"><h2>${dlabel(selDay)}</h2>${list.length ? setsHtml(list, true) : '<div class="empty">この日の記録はありません</div>'}</div>`;
+  }
+
+  // ---- グラフ ----
+  $("cex").addEventListener("change", renderChart);
+  $("cmetric").addEventListener("change", renderChart);
+
+  function renderChart() {
+    const exs = exercises();
+    const sel = $("cex");
+    const prevSel = sel.value;
+    sel.innerHTML = exs.map((e) => `<option>${esc(e)}</option>`).join("");
+    if (exs.includes(prevSel)) sel.value = prevSel;
+    const box = $("chartBox");
+    if (!exs.length) { box.innerHTML = '<div class="empty">記録するとグラフが表示されます</div>'; return; }
+
+    const metric = $("cmetric").value;
+    const perDay = new Map();
+    byExercise(sel.value).forEach((s) => {
+      const v = metric === "max" ? s.weight : metric === "e1rm" ? e1rm(s.weight, s.reps) : s.weight * s.reps;
+      perDay.set(s.date, metric === "vol" ? (perDay.get(s.date) || 0) + v : Math.max(perDay.get(s.date) || 0, v));
+    });
+    const pts = [...perDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+    if (pts.length < 2) { box.innerHTML = '<div class="empty">グラフには2日分以上の記録が必要です</div>'; return; }
+
+    const W = 600, H = 300, L = 44, R = 14, T = 14, B = 30;
+    const vals = pts.map((p) => p[1]);
+    let lo = Math.min(...vals), hi = Math.max(...vals);
+    if (metric === "vol") lo = 0;
+    const padv = (hi - lo) * 0.15 || 1;
+    lo = metric === "vol" ? 0 : Math.max(0, lo - padv); hi += padv;
+    const t0 = new Date(pts[0][0]).getTime(), t1 = new Date(pts[pts.length - 1][0]).getTime();
+    const X = (d) => L + ((new Date(d).getTime() - t0) / (t1 - t0 || 1)) * (W - L - R);
+    const Y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+
+    let g = "";
+    for (let i = 0; i <= 4; i++) {
+      const v = lo + ((hi - lo) * i) / 4, y = Y(v);
+      g += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y}" y2="${y}"/><text x="${L - 6}" y="${y + 4}" text-anchor="end">${Math.round(v)}</text>`;
+    }
+    const line = pts.map((p, i) => `${i ? "L" : "M"}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join("");
+    const area = `${line}L${X(pts[pts.length - 1][0])},${H - B}L${X(pts[0][0])},${H - B}Z`;
+    const dots = pts.map((p) => `<circle class="pt" cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="4"><title>${dlabel(p[0])}: ${fmt(p[1])}</title></circle>`).join("");
+    const xl = `<text x="${L}" y="${H - 8}">${dlabel(pts[0][0])}</text><text x="${W - R}" y="${H - 8}" text-anchor="end">${dlabel(pts[pts.length - 1][0])}</text>`;
+    box.innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="成長グラフ">${g}<path class="area" d="${area}"/><path class="ln" d="${line}"/>${dots}${xl}</svg>
+      <div class="hint">${{ max: "各日の最大重量 (kg)", e1rm: "各日の推定1RM (kg, Epley式)", vol: "各日の 重量×回数 の合計 (kg)" }[metric]}</div>`;
+  }
+
+  // ---- 自己ベスト ----
+  function renderPR() {
+    const exs = exercises();
+    if (!exs.length) { $("prBox").innerHTML = '<div class="empty">まだ記録がありません</div>'; return; }
+    const rows = exs.map((name) => {
+      const arr = byExercise(name);
+      const mw = arr.reduce((b, s) => (s.weight > b.weight || (s.weight === b.weight && s.reps > b.reps) ? s : b), arr[0]);
+      const me = arr.reduce((b, s) => (e1rm(s.weight, s.reps) > e1rm(b.weight, b.reps) ? s : b), arr[0]);
+      return `<tr><td>${esc(name)}</td><td>${fmt(mw.weight)}kg×${mw.reps}<br><small style="color:var(--sub)">${dlabel(mw.date)}</small></td><td>${fmt(e1rm(me.weight, me.reps))}kg</td></tr>`;
+    }).join("");
+    $("prBox").innerHTML = `<table><thead><tr><th>種目</th><th>最大重量</th><th>推定1RM</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  // ---- 部位の可視化 ----
+  let bodyDays = 7;
+  document.querySelectorAll("#bodyRange button").forEach((b) => b.addEventListener("click", () => {
+    bodyDays = parseInt(b.dataset.days, 10);
+    document.querySelectorAll("#bodyRange button").forEach((x) => x.classList.toggle("on", x === b));
+    renderBody();
+  }));
+  function renderBody() {
+    const from = bodyDays ? (() => { const d = new Date(); d.setDate(d.getDate() - bodyDays + 1); return ymd(d); })() : "";
+    const cnt = Object.fromEntries(GROUPS.map((g) => [g, 0])); let other = 0;
+    sets.filter((x) => !from || x.date >= from).forEach((x) => { const g = groupOf(x.exercise); if (g) cnt[g]++; else other++; });
+    const max = Math.max(1, ...Object.values(cnt));
+    const fill = (g) => cnt[g] ? `style="fill:var(--accent);fill-opacity:${(0.25 + 0.75 * cnt[g] / max).toFixed(2)}"` : "";
+    const tag = (g, el, attrs) => `<${el} class="m" ${attrs} ${fill(g)}><title>${g}: ${cnt[g]}セット</title></${el}>`;
+    const front = `<circle class="base" cx="100" cy="30" r="18"/><rect class="base" x="92" y="46" width="16" height="12"/>
+      ${tag("肩", "circle", 'cx="56" cy="74" r="15"')}${tag("肩", "circle", 'cx="144" cy="74" r="15"')}
+      ${tag("胸", "ellipse", 'cx="80" cy="88" rx="21" ry="15"')}${tag("胸", "ellipse", 'cx="120" cy="88" rx="21" ry="15"')}
+      ${tag("腹", "rect", 'x="82" y="108" width="36" height="60" rx="10"')}
+      ${tag("腕", "rect", 'x="32" y="92" width="18" height="76" rx="9"')}${tag("腕", "rect", 'x="150" y="92" width="18" height="76" rx="9"')}
+      ${tag("脚", "rect", 'x="68" y="176" width="30" height="130" rx="14"')}${tag("脚", "rect", 'x="102" y="176" width="30" height="130" rx="14"')}
+      <text x="100" y="326">前</text>`;
+    const back = `<g transform="translate(200 0)"><circle class="base" cx="100" cy="30" r="18"/><rect class="base" x="92" y="46" width="16" height="12"/>
+      ${tag("肩", "circle", 'cx="56" cy="74" r="15"')}${tag("肩", "circle", 'cx="144" cy="74" r="15"')}
+      ${tag("背中", "path", 'd="M74 62 H126 L134 110 L118 164 H82 L66 110 Z"')}
+      ${tag("腕", "rect", 'x="32" y="92" width="18" height="76" rx="9"')}${tag("腕", "rect", 'x="150" y="92" width="18" height="76" rx="9"')}
+      ${tag("お尻", "ellipse", 'cx="83" cy="184" rx="18" ry="17"')}${tag("お尻", "ellipse", 'cx="117" cy="184" rx="18" ry="17"')}
+      ${tag("脚", "rect", 'x="68" y="204" width="30" height="102" rx="14"')}${tag("脚", "rect", 'x="102" y="204" width="30" height="102" rx="14"')}
+      <text x="100" y="326">後ろ</text></g>`;
+    $("bodyBox").innerHTML = `<svg class="body" viewBox="0 0 400 336" role="img" aria-label="鍛えた部位">${front}${back}</svg>`;
+    $("bodyList").innerHTML = [...GROUPS].sort((a, b) => cnt[b] - cnt[a]).map((g) => `<div class="gbar"><span class="nm">${g}</span><span class="tr"><i style="width:${100 * cnt[g] / max}%"></i></span><span class="ct">${cnt[g]}セット</span></div>`).join("");
+    const none = GROUPS.filter((g) => !cnt[g]);
+    const range = bodyDays ? `直近${bodyDays}日` : "全期間";
+    $("bodyHint").textContent = `${range}でまだ鍛えていない部位: ${none.length ? none.join("、") : "なし (全部位やりました！)"}` + (other ? ` ／ 部位未設定のセット: ${other}件` : "");
+  }
+
+  // ---- ルーティン ----
+  let activeRt = null;
+  function renderRoutine() {
+    $("rtCard").hidden = !meta.routines.length;
+    $("rtChips").innerHTML = meta.routines.map((r) => `<button class="chip${r.id === activeRt ? " on" : ""}" data-rt="${r.id}">${esc(r.name)}</button>`).join("");
+    const r = meta.routines.find((x) => x.id === activeRt);
+    const doneToday = new Set(sets.filter((s) => s.date === ($("date").value || today())).map((s) => s.exercise));
+    $("rtEx").innerHTML = r ? r.exercises.map((e) => `<button class="chip ex${doneToday.has(e) ? " done" : ""}" data-ex="${esc(e)}">${esc(e)}</button>`).join("") : "";
+    $("rtList").innerHTML = meta.routines.length ? meta.routines.map((x) => `<div class="rt"><div class="v"><b>${esc(x.name)}</b><small>${esc(x.exercises.join(" / "))}</small></div><button class="ghost small" data-rtdel="${x.id}">削除</button></div>`).join("") : '<div class="empty">ルーティンはまだありません</div>';
+  }
+  document.addEventListener("click", (e) => {
+    const t = e.target;
+    if (t.dataset.rt) { activeRt = activeRt === t.dataset.rt ? null : t.dataset.rt; renderRoutine(); }
+    else if (t.dataset.ex) { $("exercise").value = t.dataset.ex; $("weight").value = ""; $("reps").value = ""; showLast(); $("weight").focus(); }
+    else if (t.dataset.rtdel) { meta.routines = meta.routines.filter((x) => x.id !== t.dataset.rtdel); if (activeRt === t.dataset.rtdel) activeRt = null; save(); renderRoutine(); }
+  });
+  $("rtAdd").addEventListener("click", () => {
+    const name = $("rtName").value.trim();
+    const exs = $("rtExs").value.split(/[,、，]/).map((x) => x.trim()).filter(Boolean);
+    if (!name || !exs.length) return toast("名前と種目を入力してください");
+    meta.routines.push({ id: "r" + Date.now(), name, exercises: exs });
+    $("rtName").value = ""; $("rtExs").value = ""; save(); renderRoutine(); toast("ルーティンを追加しました");
+  });
+
+  // ---- export / import ----
+  $("export").addEventListener("click", () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify({ sets, notes: meta.notes, routines: meta.routines, groups: meta.groups }, null, 2)], { type: "application/json" }));
+    a.download = `workout-${today()}.json`; a.click(); URL.revokeObjectURL(a.href);
+  });
+  $("import").addEventListener("click", () => $("file").click());
+  $("file").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const raw = JSON.parse(await f.text());
+      const data = Array.isArray(raw) ? raw : raw.sets;
+      if (!Array.isArray(raw) && raw.notes) meta.notes = { ...raw.notes, ...meta.notes };
+      if (!Array.isArray(raw) && raw.groups) meta.groups = { ...raw.groups, ...meta.groups };
+      if (!Array.isArray(raw) && Array.isArray(raw.routines)) { const have = new Set(meta.routines.map((r) => r.id)); meta.routines.push(...raw.routines.filter((r) => !have.has(r.id))); }
+      if (!Array.isArray(data) || !data.every((s) => s && s.date && s.exercise && isFinite(s.weight) && isFinite(s.reps))) throw 0;
+      const ids = new Set(sets.map((s) => s.id));
+      const add = data.filter((s) => !ids.has(s.id));
+      sets = sets.concat(add); save(); render(); toast(`${add.length}件を読み込みました`);
+    } catch { toast("読み込めないファイルです"); }
+    e.target.value = "";
+  });
+
+  // ---- 共通描画 ----
+  function render() {
+    const names = [...new Set([...exercises(), ...PRESETS])];
+    $("exlist").innerHTML = names.map((n) => `<option value="${esc(n)}">`).join("");
+    const d = $("date").value || today();
+    const list = sets.filter((s) => s.date === d);
+    $("today").innerHTML = `<div class="card"><h2>${d === today() ? "今日" : dlabel(d)}の記録</h2>${list.length ? setsHtml(list, true) : '<div class="empty">まだ記録がありません</div>'}</div>`;
+
+    // 連続日数
+    const days = new Set(sets.map((s) => s.date));
+    let n = 0; const c = new Date();
+    if (!days.has(ymd(c))) c.setDate(c.getDate() - 1);
+    while (days.has(ymd(c))) { n++; c.setDate(c.getDate() - 1); }
+    $("streak").textContent = n ? `🔥 ${n}日連続` : "";
+
+    renderHist(); renderChart(); renderPR(); renderRoutine(); renderBody();
+  }
+  render();
+  if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
