@@ -123,6 +123,24 @@ svg.body { width: 100%; height: auto; display: block; }
 .pastrow { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; border-top: 1px solid var(--line); }
 .pastrow .pd { width: 70px; flex: none; font-size: 13px; color: var(--sub); padding-top: 7px; font-variant-numeric: tabular-nums; }
 .past .chip.ex { background: var(--card); }
+.pick { cursor: pointer; }
+.sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 30; display: flex; align-items: flex-end; justify-content: center; }
+.sheet-bg[hidden] { display: none; }
+.sheet { background: var(--card); width: 100%; max-width: 640px; height: 88vh; height: 88dvh; border-radius: 20px 20px 0 0; padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; }
+.sheet-head { display: flex; justify-content: space-between; align-items: center; font-size: 17px; }
+.tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; flex: none; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { flex: none; min-height: 36px; padding: 0 14px; border-radius: 18px; background: var(--bg); color: var(--text); border: 1px solid var(--line); font-weight: 500; font-size: 14px; }
+.tabs button.on { background: var(--accent); color: var(--accent-fg); border-color: transparent; font-weight: 700; }
+.exlist { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; margin: 0 -4px; }
+.exitem { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; color: var(--text); border-radius: 12px; min-height: 56px; padding: 8px 10px; font-weight: 500; border-bottom: 1px solid var(--line); border-radius: 0; }
+.exitem .nm { flex: 1; min-width: 0; }
+.exitem small { display: block; color: var(--sub); font-weight: 400; font-size: 12px; }
+.exitem .tag { flex: none; font-size: 11px; color: var(--accent); background: var(--accent-soft); border-radius: 8px; padding: 2px 8px; font-weight: 700; }
+.exitem .tag.m { color: var(--sub); background: var(--bg); border: 1px solid var(--line); }
+.sec { font-size: 12px; font-weight: 700; color: var(--sub); padding: 12px 10px 4px; }
+.addex { flex: none; border-top: 1px solid var(--line); padding-top: 8px; }
+.addex summary { cursor: pointer; font-weight: 600; color: var(--accent); min-height: 40px; display: flex; align-items: center; }
 </style>
 </head>
 <body>
@@ -140,8 +158,7 @@ svg.body { width: 100%; height: auto; display: block; }
     <div class="field"><label for="date">日付</label><input type="date" id="date"></div>
     <div class="field">
       <label for="exercise">種目</label>
-      <input id="exercise" list="exlist" placeholder="例: ベンチプレス" autocomplete="off">
-      <datalist id="exlist"></datalist>
+      <input id="exercise" class="pick" readonly placeholder="タップして種目を選ぶ ▾" autocomplete="off">
       <div class="hint" id="last"></div>
     </div>
     <div class="field"><label for="group">鍛える部位</label>
@@ -238,14 +255,40 @@ svg.body { width: 100%; height: auto; display: block; }
   <button data-tab="chart"><span>📈</span>グラフ</button>
   <button data-tab="pr"><span>🏆</span>PR</button>
 </nav>
+<div class="sheet-bg" id="sheetBg" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="種目を選ぶ">
+    <div class="sheet-head"><b>種目を選ぶ</b><button class="ghost small" id="sheetClose">閉じる</button></div>
+    <input id="exSearch" type="search" placeholder="種目名で検索" autocomplete="off">
+    <div class="tabs" id="exTabs"></div>
+    <div class="exlist" id="exListBox"></div>
+    <details class="addex" id="addEx">
+      <summary>＋ 新しい種目を追加</summary>
+      <div class="row stack" style="margin-top:10px">
+        <div class="field"><label for="newName">種目名</label><input id="newName" placeholder="例: スミスマシンスクワット"></div>
+        <div class="field"><label for="newGroup">部位</label><select id="newGroup"></select></div>
+      </div>
+      <button class="full" id="newAdd">追加して選ぶ</button>
+    </details>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
 (() => {
   const KEY = "workout-tracker-v1";
-  const PRESETS = ["ベンチプレス", "スクワット", "デッドリフト", "ショルダープレス", "懸垂", "ラットプルダウン", "バーベルロウ", "レッグプレス", "アームカール"];
+  const EXDB = {
+    "胸": ["ベンチプレス", "インクラインベンチプレス", "ダンベルプレス", "インクラインダンベルプレス", "ダンベルフライ", "ケーブルクロスオーバー", "チェストプレス", "インクラインチェストプレス", "ペックフライ", "スミスマシンベンチプレス", "腕立て伏せ", "ディップス"],
+    "背中": ["デッドリフト", "懸垂", "ラットプルダウン", "バーベルロウ", "ダンベルロウ", "シーテッドロウ", "マシンロウ", "ワイドグリッププルダウン", "ストレートアームプルダウン", "アシストチンニング", "Tバーロウ", "ハイパーエクステンション", "バックエクステンションマシン"],
+    "肩": ["ショルダープレス", "ダンベルショルダープレス", "サイドレイズ", "フロントレイズ", "リアレイズ", "アップライトロウ", "フェイスプル", "マシンショルダープレス", "サイドレイズマシン", "リアデルトフライ", "スミスマシンショルダープレス"],
+    "腕": ["アームカール", "ダンベルカール", "ハンマーカール", "プリーチャーカール", "トライセプスプレスダウン", "トライセプスエクステンション", "フレンチプレス", "ナローベンチプレス", "アームカールマシン", "トライセプスエクステンションマシン", "ディップスマシン"],
+    "腹": ["クランチ", "シットアップ", "レッグレイズ", "プランク", "アブローラー", "アブドミナルクランチマシン", "ロータリートルソー"],
+    "脚": ["スクワット", "レッグプレス", "レッグエクステンション", "レッグカール", "ランジ", "ブルガリアンスクワット", "カーフレイズ", "ライイングレッグカール", "シーテッドレッグカール", "ハックスクワット", "スミスマシンスクワット", "シーテッドカーフレイズ", "ヒップアダクション"],
+    "お尻": ["ヒップスラスト", "ルーマニアンデッドリフト", "ヒップアブダクション", "グルートキックバックマシン", "スミスマシンヒップスラスト"],
+  };
   const GROUPS = ["胸", "背中", "肩", "腕", "腹", "脚", "お尻"];
-  const PRESET_GROUP = { "ベンチプレス": "胸", "スクワット": "脚", "デッドリフト": "背中", "ショルダープレス": "肩", "懸垂": "背中", "ラットプルダウン": "背中", "バーベルロウ": "背中", "レッグプレス": "脚", "アームカール": "腕" };
+  // マシン・ケーブル系の種目 (一覧で別見出しにまとめる)
+  const MACHINES = new Set(["チェストプレス", "インクラインチェストプレス", "ペックフライ", "スミスマシンベンチプレス", "ケーブルクロスオーバー", "ラットプルダウン", "シーテッドロウ", "マシンロウ", "ワイドグリッププルダウン", "ストレートアームプルダウン", "アシストチンニング", "バックエクステンションマシン", "フェイスプル", "マシンショルダープレス", "サイドレイズマシン", "リアデルトフライ", "スミスマシンショルダープレス", "トライセプスプレスダウン", "アームカールマシン", "トライセプスエクステンションマシン", "ディップスマシン", "アブドミナルクランチマシン", "ロータリートルソー", "レッグプレス", "レッグエクステンション", "レッグカール", "ライイングレッグカール", "シーテッドレッグカール", "ハックスクワット", "スミスマシンスクワット", "シーテッドカーフレイズ", "ヒップアダクション", "ヒップアブダクション", "グルートキックバックマシン", "スミスマシンヒップスラスト"]);
+  const PRESET_GROUP = {}; Object.entries(EXDB).forEach(([g, list]) => list.forEach((n) => { PRESET_GROUP[n] = g; }));
   const GUESS = [["胸", /ベンチ|インクライン|ダンベルプレス|フライ|プッシュアップ|腕立|ディップス|チェスト/], ["背中", /ロウ|プル|懸垂|デッド|背/], ["肩", /ショルダー|サイド|レイズ|ショルプレ/], ["腕", /カール|トライセプス|フレンチ|アーム|キックバック/], ["腹", /腹筋|クランチ|シットアップ|プランク|レッグレイズ/], ["お尻", /ヒップ|グルート|ブルガリアン/], ["脚", /スクワット|レッグ|ランジ|カーフ/]];
   const groupOf = (name) => { if (meta.groups[name]) return meta.groups[name]; if (PRESET_GROUP[name]) return PRESET_GROUP[name]; const g = GUESS.find(([, re]) => re.test(name)); return g ? g[0] : ""; };
   const $ = (id) => document.getElementById(id);
@@ -254,8 +297,8 @@ svg.body { width: 100%; height: auto; display: block; }
   // ---- storage (localStorage が使えない環境でも動くようメモリにフォールバック) ----
   let sets = [];
   try { sets = JSON.parse(localStorage.getItem(KEY) || "[]"); if (!Array.isArray(sets)) sets = []; } catch { sets = []; }
-  let meta = { notes: {}, routines: [], groups: {} };
-  try { const m = JSON.parse(localStorage.getItem(KEY + "-meta") || "{}"); meta = { notes: m.notes || {}, routines: m.routines || [], groups: m.groups || {} }; } catch {}
+  let meta = { notes: {}, routines: [], groups: {}, customs: [] };
+  try { const m = JSON.parse(localStorage.getItem(KEY + "-meta") || "{}"); meta = { notes: m.notes || {}, routines: m.routines || [], groups: m.groups || {}, customs: m.customs || [] }; } catch {}
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(sets)); localStorage.setItem(KEY + "-meta", JSON.stringify(meta)); } catch {} };
 
   const pad = (n) => String(n).padStart(2, "0");
@@ -516,6 +559,73 @@ svg.body { width: 100%; height: auto; display: block; }
     $("prBox").innerHTML = `<table><thead><tr><th>種目</th><th>最大重量</th><th>推定1RM</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
+  // ---- 種目ピッカー ----
+  const OTHER = "その他";
+  let pickTab = "";
+  function allExercises() {
+    const m = new Map();
+    Object.entries(EXDB).forEach(([g, list]) => list.forEach((n) => m.set(n, g)));
+    meta.customs.forEach((c) => m.set(c.name, c.group || OTHER));
+    exercises().forEach((n) => { if (!m.has(n)) m.set(n, groupOf(n) || OTHER); });
+    return [...m.entries()].map(([name, g]) => ({ name, group: meta.groups[name] || g }));
+  }
+  function recentNames() {
+    const last = {};
+    sets.forEach((x) => { if (!last[x.exercise] || x.date >= last[x.exercise]) last[x.exercise] = x.date; });
+    return Object.keys(last).sort((a, b) => (last[a] < last[b] ? 1 : last[a] > last[b] ? -1 : 0));
+  }
+  function lastLabel(name) {
+    const arr = byExercise(name); if (!arr.length) return "";
+    const d = arr.reduce((m, x) => (x.date > m ? x.date : m), "");
+    const top = arr.filter((x) => x.date === d).reduce((b, x) => (x.weight >= b.weight ? x : b));
+    return `前回 ${dlabel(d)} ${fmt(top.weight)}kg×${top.reps}`;
+  }
+  function renderPicker() {
+    const tabs = ["最近", "すべて", ...GROUPS, OTHER];
+    if (!pickTab) pickTab = recentNames().length ? "最近" : GROUPS[0];
+    $("exTabs").innerHTML = tabs.map((t) => `<button class="${t === pickTab ? "on" : ""}" data-ptab="${t}">${t}</button>`).join("");
+    const q = $("exSearch").value.trim().toLowerCase();
+    const all = allExercises();
+    let list;
+    if (q) list = all.filter((e) => e.name.toLowerCase().includes(q));
+    else if (pickTab === "最近") { const g = new Map(all.map((e) => [e.name, e.group])); list = recentNames().map((n) => ({ name: n, group: g.get(n) || OTHER })); }
+    else if (pickTab === "すべて") list = all;
+    else list = all.filter((e) => e.group === pickTab);
+    const item = (e) => `<button class="exitem" data-pick="${esc(e.name)}"><span class="nm">${esc(e.name)}${lastLabel(e.name) ? `<small>${esc(lastLabel(e.name))}</small>` : ""}</span>${MACHINES.has(e.name) ? '<span class="tag m">マシン</span>' : ""}<span class="tag">${esc(e.group)}</span></button>`;
+    const bySection = !q && (GROUPS.includes(pickTab) || pickTab === OTHER);
+    const free = list.filter((e) => !MACHINES.has(e.name)), mach = list.filter((e) => MACHINES.has(e.name));
+    $("exListBox").innerHTML = !list.length ? `<div class="empty">${q ? "見つかりません。下の「新しい種目を追加」から登録できます" : "ここに種目はまだありません"}</div>`
+      : bySection && free.length && mach.length ? `<div class="sec">フリーウェイト・自重</div>${free.map(item).join("")}<div class="sec">マシン・ケーブル</div>${mach.map(item).join("")}`
+      : list.map(item).join("");
+  }
+  function openPicker() {
+    $("sheetBg").hidden = false; document.body.style.overflow = "hidden";
+    $("exSearch").value = ""; pickTab = ""; $("addEx").open = false;
+    renderPicker();
+  }
+  function closePicker() { $("sheetBg").hidden = true; document.body.style.overflow = ""; }
+  function pickExercise(name) {
+    $("exercise").value = name; $("weight").value = ""; $("reps").value = "";
+    $("exercise").dispatchEvent(new Event("change")); $("exercise").dispatchEvent(new Event("input"));
+    closePicker(); $("weight").focus();
+  }
+  $("newGroup").innerHTML = [...GROUPS, OTHER].map((g) => `<option>${g}</option>`).join("");
+  $("exercise").addEventListener("click", openPicker);
+  $("sheetClose").addEventListener("click", closePicker);
+  $("sheetBg").addEventListener("click", (e) => { if (e.target === $("sheetBg")) closePicker(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("sheetBg").hidden) closePicker(); });
+  $("exSearch").addEventListener("input", renderPicker);
+  $("exTabs").addEventListener("click", (e) => { const t = e.target.dataset.ptab; if (t) { pickTab = t; $("exSearch").value = ""; renderPicker(); } });
+  $("exListBox").addEventListener("click", (e) => { const b = e.target.closest("[data-pick]"); if (b) pickExercise(b.dataset.pick); });
+  $("newAdd").addEventListener("click", () => {
+    const name = $("newName").value.trim(); const group = $("newGroup").value;
+    if (!name) return toast("種目名を入力してください");
+    if (!allExercises().some((x) => x.name === name)) meta.customs.push({ name, group });
+    if (group !== OTHER) meta.groups[name] = group;
+    save(); $("newName").value = ""; pickExercise(name);
+  });
+  $("addEx").addEventListener("toggle", () => { if ($("addEx").open && !$("newName").value) $("newName").value = $("exSearch").value.trim(); });
+
   // ---- 部位の可視化 ----
   let bodyDays = 7;
   document.querySelectorAll("#bodyRange button").forEach((b) => b.addEventListener("click", () => {
@@ -578,7 +688,7 @@ svg.body { width: 100%; height: auto; display: block; }
   // ---- export / import ----
   $("export").addEventListener("click", () => {
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([JSON.stringify({ sets, notes: meta.notes, routines: meta.routines, groups: meta.groups }, null, 2)], { type: "application/json" }));
+    a.href = URL.createObjectURL(new Blob([JSON.stringify({ sets, notes: meta.notes, routines: meta.routines, groups: meta.groups, customs: meta.customs }, null, 2)], { type: "application/json" }));
     a.download = `workout-${today()}.json`; a.click(); URL.revokeObjectURL(a.href);
   });
   $("import").addEventListener("click", () => $("file").click());
@@ -589,6 +699,7 @@ svg.body { width: 100%; height: auto; display: block; }
       const data = Array.isArray(raw) ? raw : raw.sets;
       if (!Array.isArray(raw) && raw.notes) meta.notes = { ...raw.notes, ...meta.notes };
       if (!Array.isArray(raw) && raw.groups) meta.groups = { ...raw.groups, ...meta.groups };
+      if (!Array.isArray(raw) && Array.isArray(raw.customs)) raw.customs.forEach((c) => { if (c && c.name && !meta.customs.some((x) => x.name === c.name)) meta.customs.push(c); });
       if (!Array.isArray(raw) && Array.isArray(raw.routines)) { const have = new Set(meta.routines.map((r) => r.id)); meta.routines.push(...raw.routines.filter((r) => !have.has(r.id))); }
       if (!Array.isArray(data) || !data.every((s) => s && s.date && s.exercise && isFinite(s.weight) && isFinite(s.reps))) throw 0;
       const ids = new Set(sets.map((s) => s.id));
@@ -600,8 +711,6 @@ svg.body { width: 100%; height: auto; display: block; }
 
   // ---- 共通描画 ----
   function render() {
-    const names = [...new Set([...exercises(), ...PRESETS])];
-    $("exlist").innerHTML = names.map((n) => `<option value="${esc(n)}">`).join("");
     const d = $("date").value || today();
     const list = sets.filter((s) => s.date === d);
     $("today").innerHTML = `<div class="card"><h2>${d === today() ? "今日" : dlabel(d)}の記録</h2>${list.length ? setsHtml(list, true) : '<div class="empty">まだ記録がありません</div>'}</div>`;
