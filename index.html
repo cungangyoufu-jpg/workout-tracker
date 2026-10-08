@@ -139,6 +139,16 @@ svg.body { width: 100%; height: auto; display: block; }
 .exitem .tag { flex: none; font-size: 11px; color: var(--accent); background: var(--accent-soft); border-radius: 8px; padding: 2px 8px; font-weight: 700; }
 .exitem .tag.m { color: var(--sub); background: var(--bg); border: 1px solid var(--line); }
 .sec { font-size: 12px; font-weight: 700; color: var(--sub); padding: 12px 10px 4px; }
+.exitem .ck { flex: none; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; font-size: 14px; color: transparent; }
+.exitem.sel { background: var(--accent-soft); }
+.exitem.sel .ck { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.exitem.inplan { opacity: .55; }
+.mchip { display: inline-flex; align-items: stretch; border-radius: 20px; border: 1px solid var(--line); background: var(--bg); overflow: hidden; }
+.mchip button { min-height: 40px; background: none; color: var(--text); border-radius: 0; font-weight: 600; font-size: 14px; padding: 0 12px; }
+.mchip button.x { color: var(--sub); padding: 0 12px 0 4px; font-weight: 400; }
+.mchip.cur { border-color: var(--accent); background: var(--accent-soft); }
+.mchip.done button:first-child::before { content: "✓ "; color: var(--accent); }
+.mchip small { color: var(--sub); font-weight: 400; margin-left: 4px; }
 .addex { flex: none; border-top: 1px solid var(--line); padding-top: 8px; }
 .addex summary { cursor: pointer; font-weight: 600; color: var(--accent); min-height: 40px; display: flex; align-items: center; }
 </style>
@@ -149,24 +159,27 @@ svg.body { width: 100%; height: auto; display: block; }
 
 <!-- 記録 -->
 <section class="view on" id="v-log">
+  <div class="card" id="menuCard" hidden>
+    <h2>今日のメニュー</h2>
+    <div class="chips" id="menuChips"></div>
+    <div class="hint">種目をタップすると、その種目の記録に切り替わります</div>
+  </div>
   <div class="card" id="rtCard" hidden>
     <h2>ルーティン</h2>
     <div class="chips" id="rtChips"></div>
     <div class="chips" id="rtEx" style="margin-top:10px"></div>
   </div>
   <div class="card">
-    <div class="field"><label for="date">日付</label><input type="date" id="date"></div>
+    <input type="date" id="date" hidden>
     <div class="field">
       <label for="exercise">種目</label>
       <input id="exercise" class="pick" readonly placeholder="タップして種目を選ぶ ▾" autocomplete="off">
       <div class="hint" id="last"></div>
     </div>
-    <div class="field"><label for="group">鍛える部位</label>
+    <div class="field" hidden><label for="group">鍛える部位</label>
       <select id="group"><option value="">未設定</option></select></div>
-    <div class="field"><label for="memo">この種目のメモ (フォームや設定など)</label>
-      <input id="memo" placeholder="例: シートの高さ3、肩甲骨を寄せる"></div>
-    <div class="field"><label for="snote">このセットのメモ (任意)</label>
-      <input id="snote" placeholder="例: 調子良い / 最後きつかった"></div>
+    <div class="field"><label for="snote">メモ</label>
+      <input id="snote" placeholder="例: シートの高さ3 / 調子良い"></div>
     <div class="row stack">
       <div class="field"><label for="weight">重量 (kg)</label>
         <div class="stepper"><button class="ghost" data-step="weight:-2.5">−</button><input id="weight" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0"><button class="ghost" data-step="weight:2.5">＋</button></div></div>
@@ -261,6 +274,7 @@ svg.body { width: 100%; height: auto; display: block; }
     <input id="exSearch" type="search" placeholder="種目名で検索" autocomplete="off">
     <div class="tabs" id="exTabs"></div>
     <div class="exlist" id="exListBox"></div>
+    <button class="full" id="pickDone" disabled>種目を選んでください</button>
     <details class="addex" id="addEx">
       <summary>＋ 新しい種目を追加</summary>
       <div class="row stack" style="margin-top:10px">
@@ -297,8 +311,8 @@ svg.body { width: 100%; height: auto; display: block; }
   // ---- storage (localStorage が使えない環境でも動くようメモリにフォールバック) ----
   let sets = [];
   try { sets = JSON.parse(localStorage.getItem(KEY) || "[]"); if (!Array.isArray(sets)) sets = []; } catch { sets = []; }
-  let meta = { notes: {}, routines: [], groups: {}, customs: [] };
-  try { const m = JSON.parse(localStorage.getItem(KEY + "-meta") || "{}"); meta = { notes: m.notes || {}, routines: m.routines || [], groups: m.groups || {}, customs: m.customs || [] }; } catch {}
+  let meta = { notes: {}, routines: [], groups: {}, customs: [], plans: {} };
+  try { const m = JSON.parse(localStorage.getItem(KEY + "-meta") || "{}"); meta = { notes: m.notes || {}, routines: m.routines || [], groups: m.groups || {}, customs: m.customs || [], plans: m.plans || {} }; } catch {}
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(sets)); localStorage.setItem(KEY + "-meta", JSON.stringify(meta)); } catch {} };
 
   const pad = (n) => String(n).padStart(2, "0");
@@ -355,9 +369,14 @@ svg.body { width: 100%; height: auto; display: block; }
       ${rows || '<div class="hint">過去の記録はこの日が初めてです</div>'}
       ${rows ? '<div class="hint">タップすると重量と回数が入力されます</div>' : ""}</div>`;
   }
+  function lastNote(name) {
+    const withNote = byExercise(name).filter((x) => x.note);
+    if (!withNote.length) return meta.notes[name] || "";
+    return withNote.reduce((b, x) => (x.date >= b.date ? x : b)).note;
+  }
   function showLast() {
     const name = $("exercise").value.trim();
-    $("memo").value = meta.notes[name] || "";
+    $("snote").value = lastNote(name);
     $("group").value = groupOf(name);
     renderPast();
     if (!name) return;
@@ -381,12 +400,6 @@ svg.body { width: 100%; height: auto; display: block; }
     save(); renderBody();
   });
   $("exercise").addEventListener("change", () => { showLast(); renderRoutine(); });
-  $("memo").addEventListener("change", () => {
-    const name = $("exercise").value.trim(); if (!name) return;
-    const v = $("memo").value.trim();
-    if (v) meta.notes[name] = v; else delete meta.notes[name];
-    save();
-  });
   $("date").addEventListener("change", () => { showLast(); render(); });
 
   $("add").addEventListener("click", () => {
@@ -403,12 +416,11 @@ svg.body { width: 100%; height: auto; display: block; }
     const prevMaxE = prev.reduce((m, s) => Math.max(m, e1rm(s.weight, s.reps)), 0);
     const entry = { id: Date.now() + Math.random().toString(36).slice(2, 6), date, exercise, weight, reps, pr: false };
     const note = $("snote").value.trim(); if (note) entry.note = note;
-    $("snote").value = "";
     if (prev.length && weight > 0 && (weight > prevMaxW || e1rm(weight, reps) > prevMaxE + 0.001)) {
       entry.pr = true;
       toast(weight > prevMaxW ? "🎉 重量の自己ベスト更新！" : "🎉 推定1RMの自己ベスト更新！");
     }
-    sets.push(entry); save();
+    sets.push(entry); addToPlan([exercise], date); save();
     startTimer();
     render();
   });
@@ -422,10 +434,10 @@ svg.body { width: 100%; height: auto; display: block; }
     let html = "";
     groupByExercise(list).forEach((arr, name) => {
       const vol = arr.reduce((a, s) => a + s.weight * s.reps, 0);
-      html += `<div class="ex-title"><span>${esc(name)}</span><small>ボリューム ${Math.round(vol).toLocaleString()}kg</small></div>${meta.notes[name] ? `<div class="note">📝 ${esc(meta.notes[name])}</div>` : ""}`;
+      html += `<div class="ex-title"><span>${esc(name)}</span><small>ボリューム ${Math.round(vol).toLocaleString()}kg</small></div>`;
       arr.forEach((s, i) => {
         html += `<div class="set"><div class="n">${i + 1}</div>
-          <div class="v"><b>${fmt(s.weight)}</b> kg × <b>${s.reps}</b> 回${s.pr ? '<span class="badge">PR</span>' : ""}${s.note ? `<div class="note">${esc(s.note)}</div>` : ""}</div>
+          <div class="v"><b>${fmt(s.weight)}</b> kg × <b>${s.reps}</b> 回${s.pr ? '<span class="badge">PR</span>' : ""}${s.note && (i === 0 || arr[i - 1].note !== s.note) ? `<div class="note">${esc(s.note)}</div>` : ""}</div>
           ${deletable ? `<button class="del" data-del="${s.id}" aria-label="削除">✕</button>` : ""}</div>`;
       });
     });
@@ -591,16 +603,30 @@ svg.body { width: 100%; height: auto; display: block; }
     else if (pickTab === "最近") { const g = new Map(all.map((e) => [e.name, e.group])); list = recentNames().map((n) => ({ name: n, group: g.get(n) || OTHER })); }
     else if (pickTab === "すべて") list = all;
     else list = all.filter((e) => e.group === pickTab);
-    const item = (e) => `<button class="exitem" data-pick="${esc(e.name)}"><span class="nm">${esc(e.name)}${lastLabel(e.name) ? `<small>${esc(lastLabel(e.name))}</small>` : ""}</span>${MACHINES.has(e.name) ? '<span class="tag m">マシン</span>' : ""}<span class="tag">${esc(e.group)}</span></button>`;
+    const inPlan = new Set(planOf());
+    const item = (e) => `<button class="exitem${picked.has(e.name) ? " sel" : ""}${inPlan.has(e.name) ? " inplan" : ""}" data-pick="${esc(e.name)}"><span class="ck">✓</span><span class="nm">${esc(e.name)}${lastLabel(e.name) ? `<small>${esc(lastLabel(e.name))}</small>` : ""}</span>${MACHINES.has(e.name) ? '<span class="tag m">マシン</span>' : ""}<span class="tag">${inPlan.has(e.name) ? "追加済み" : esc(e.group)}</span></button>`;
     const bySection = !q && (GROUPS.includes(pickTab) || pickTab === OTHER);
     const free = list.filter((e) => !MACHINES.has(e.name)), mach = list.filter((e) => MACHINES.has(e.name));
     $("exListBox").innerHTML = !list.length ? `<div class="empty">${q ? "見つかりません。下の「新しい種目を追加」から登録できます" : "ここに種目はまだありません"}</div>`
       : bySection && free.length && mach.length ? `<div class="sec">フリーウェイト・自重</div>${free.map(item).join("")}<div class="sec">マシン・ケーブル</div>${mach.map(item).join("")}`
       : list.map(item).join("");
+    updatePickDone();
+  }
+  const picked = new Set();
+  const planOf = (d = $("date").value || today()) => meta.plans[d] || [];
+  function addToPlan(names, d = $("date").value || today()) {
+    const cur = meta.plans[d] || [];
+    names.forEach((n) => { if (!cur.includes(n)) cur.push(n); });
+    meta.plans[d] = cur;
+    Object.keys(meta.plans).sort().slice(0, -30).forEach((k) => delete meta.plans[k]); // 古い日は整理
+  }
+  function updatePickDone() {
+    const n = picked.size, b = $("pickDone");
+    b.disabled = !n; b.textContent = n ? `${n}種目をメニューに追加` : "種目を選んでください";
   }
   function openPicker() {
     $("sheetBg").hidden = false; document.body.style.overflow = "hidden";
-    $("exSearch").value = ""; pickTab = ""; $("addEx").open = false;
+    picked.clear(); $("exSearch").value = ""; pickTab = ""; $("addEx").open = false;
     renderPicker();
   }
   function closePicker() { $("sheetBg").hidden = true; document.body.style.overflow = ""; }
@@ -616,13 +642,23 @@ svg.body { width: 100%; height: auto; display: block; }
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("sheetBg").hidden) closePicker(); });
   $("exSearch").addEventListener("input", renderPicker);
   $("exTabs").addEventListener("click", (e) => { const t = e.target.dataset.ptab; if (t) { pickTab = t; $("exSearch").value = ""; renderPicker(); } });
-  $("exListBox").addEventListener("click", (e) => { const b = e.target.closest("[data-pick]"); if (b) pickExercise(b.dataset.pick); });
+  $("exListBox").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-pick]"); if (!b || b.classList.contains("inplan")) return;
+    const n = b.dataset.pick;
+    if (picked.has(n)) picked.delete(n); else picked.add(n);
+    b.classList.toggle("sel", picked.has(n)); updatePickDone();
+  });
+  $("pickDone").addEventListener("click", () => {
+    const names = [...picked]; if (!names.length) return;
+    addToPlan(names); save(); pickExercise(names[0]); render();
+    toast(`${names.length}種目をメニューに追加しました`);
+  });
   $("newAdd").addEventListener("click", () => {
     const name = $("newName").value.trim(); const group = $("newGroup").value;
     if (!name) return toast("種目名を入力してください");
     if (!allExercises().some((x) => x.name === name)) meta.customs.push({ name, group });
     if (group !== OTHER) meta.groups[name] = group;
-    save(); $("newName").value = ""; pickExercise(name);
+    addToPlan([name]); save(); $("newName").value = ""; pickExercise(name); render();
   });
   $("addEx").addEventListener("toggle", () => { if ($("addEx").open && !$("newName").value) $("newName").value = $("exSearch").value.trim(); });
 
@@ -661,6 +697,24 @@ svg.body { width: 100%; height: auto; display: block; }
     $("bodyHint").textContent = `${range}でまだ鍛えていない部位: ${none.length ? none.join("、") : "なし (全部位やりました！)"}` + (other ? ` ／ 部位未設定のセット: ${other}件` : "");
   }
 
+  // ---- 今日のメニュー ----
+  function renderMenu() {
+    const d = $("date").value || today();
+    const plan = planOf(d);
+    $("menuCard").hidden = !plan.length;
+    const cur = $("exercise").value.trim();
+    $("menuChips").innerHTML = plan.map((n) => {
+      const c = sets.filter((x) => x.date === d && x.exercise === n).length;
+      return `<span class="mchip${n === cur ? " cur" : ""}${c ? " done" : ""}"><button data-mex="${esc(n)}">${esc(n)}${c ? `<small>${c}セット</small>` : ""}</button><button class="x" data-mrm="${esc(n)}" aria-label="メニューから外す">✕</button></span>`;
+    }).join("");
+  }
+  $("menuChips").addEventListener("click", (e) => {
+    const d = $("date").value || today();
+    const ex = e.target.dataset.mex, rm = e.target.dataset.mrm;
+    if (ex) { pickExercise(ex); renderMenu(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+    else if (rm) { meta.plans[d] = planOf(d).filter((n) => n !== rm); save(); renderMenu(); }
+  });
+
   // ---- ルーティン ----
   let activeRt = null;
   function renderRoutine() {
@@ -668,13 +722,14 @@ svg.body { width: 100%; height: auto; display: block; }
     $("rtChips").innerHTML = meta.routines.map((r) => `<button class="chip${r.id === activeRt ? " on" : ""}" data-rt="${r.id}">${esc(r.name)}</button>`).join("");
     const r = meta.routines.find((x) => x.id === activeRt);
     const doneToday = new Set(sets.filter((s) => s.date === ($("date").value || today())).map((s) => s.exercise));
-    $("rtEx").innerHTML = r ? r.exercises.map((e) => `<button class="chip ex${doneToday.has(e) ? " done" : ""}" data-ex="${esc(e)}">${esc(e)}</button>`).join("") : "";
+    $("rtEx").innerHTML = r ? '<button class="chip" data-rtall="1">＋ 全部メニューへ</button>' + r.exercises.map((e) => `<button class="chip ex${doneToday.has(e) ? " done" : ""}" data-ex="${esc(e)}">${esc(e)}</button>`).join("") : "";
     $("rtList").innerHTML = meta.routines.length ? meta.routines.map((x) => `<div class="rt"><div class="v"><b>${esc(x.name)}</b><small>${esc(x.exercises.join(" / "))}</small></div><button class="ghost small" data-rtdel="${x.id}">削除</button></div>`).join("") : '<div class="empty">ルーティンはまだありません</div>';
   }
   document.addEventListener("click", (e) => {
     const t = e.target;
     if (t.dataset.rt) { activeRt = activeRt === t.dataset.rt ? null : t.dataset.rt; renderRoutine(); }
     else if (t.dataset.ex) { $("exercise").value = t.dataset.ex; $("weight").value = ""; $("reps").value = ""; showLast(); $("weight").focus(); }
+    else if (t.dataset.rtall) { const r = meta.routines.find((x) => x.id === activeRt); if (r) { addToPlan(r.exercises); save(); renderMenu(); toast(`${r.exercises.length}種目をメニューに追加しました`); } }
     else if (t.dataset.rtdel) { meta.routines = meta.routines.filter((x) => x.id !== t.dataset.rtdel); if (activeRt === t.dataset.rtdel) activeRt = null; save(); renderRoutine(); }
   });
   $("rtAdd").addEventListener("click", () => {
@@ -688,7 +743,7 @@ svg.body { width: 100%; height: auto; display: block; }
   // ---- export / import ----
   $("export").addEventListener("click", () => {
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([JSON.stringify({ sets, notes: meta.notes, routines: meta.routines, groups: meta.groups, customs: meta.customs }, null, 2)], { type: "application/json" }));
+    a.href = URL.createObjectURL(new Blob([JSON.stringify({ sets, notes: meta.notes, routines: meta.routines, groups: meta.groups, customs: meta.customs, plans: meta.plans }, null, 2)], { type: "application/json" }));
     a.download = `workout-${today()}.json`; a.click(); URL.revokeObjectURL(a.href);
   });
   $("import").addEventListener("click", () => $("file").click());
@@ -699,6 +754,7 @@ svg.body { width: 100%; height: auto; display: block; }
       const data = Array.isArray(raw) ? raw : raw.sets;
       if (!Array.isArray(raw) && raw.notes) meta.notes = { ...raw.notes, ...meta.notes };
       if (!Array.isArray(raw) && raw.groups) meta.groups = { ...raw.groups, ...meta.groups };
+      if (!Array.isArray(raw) && raw.plans) Object.entries(raw.plans).forEach(([d, l]) => { if (!meta.plans[d]) meta.plans[d] = l; });
       if (!Array.isArray(raw) && Array.isArray(raw.customs)) raw.customs.forEach((c) => { if (c && c.name && !meta.customs.some((x) => x.name === c.name)) meta.customs.push(c); });
       if (!Array.isArray(raw) && Array.isArray(raw.routines)) { const have = new Set(meta.routines.map((r) => r.id)); meta.routines.push(...raw.routines.filter((r) => !have.has(r.id))); }
       if (!Array.isArray(data) || !data.every((s) => s && s.date && s.exercise && isFinite(s.weight) && isFinite(s.reps))) throw 0;
@@ -722,8 +778,11 @@ svg.body { width: 100%; height: auto; display: block; }
     while (days.has(ymd(c))) { n++; c.setDate(c.getDate() - 1); }
     $("streak").textContent = n ? `🔥 ${n}日連続` : "";
 
-    renderHist(); renderChart(); renderPR(); renderRoutine(); renderBody();
+    renderHist(); renderChart(); renderPR(); renderRoutine(); renderBody(); renderMenu();
   }
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && $("date").value !== today()) { $("date").value = today(); showLast(); render(); }
+  });
   render();
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
